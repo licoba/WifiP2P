@@ -6,6 +6,7 @@ import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -25,6 +26,8 @@ import github.leavesczy.wifip2p.utils.PCMStreamPlayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 
 /**
@@ -43,6 +46,8 @@ class FileReceiverActivity : BaseActivity() {
     private var connectionInfoAvailable = false
     private var broadcastReceiver: BroadcastReceiver? = null
     private val pcmStreamPlayer: PCMStreamPlayer by lazy { PCMStreamPlayer() }
+    private val singleThreadExecutor = Executors.newSingleThreadExecutor()
+
     private val directActionListener = object : DirectActionListener {
         override fun wifiP2pEnabled(enabled: Boolean) {
             log("wifiP2pEnabled: $enabled")
@@ -139,8 +144,9 @@ class FileReceiverActivity : BaseActivity() {
 
                         is FileTransferViewState.Receiving -> {
 //                            showLoadingDialog(message = "")
-                            with(Dispatchers.IO){
-                                pcmStreamPlayer.write(it.bytes)
+//                            Log.e("TAG","收到大小"+it.bytes.size)
+                            singleThreadExecutor.execute {
+                                if(it.bytes.isNotEmpty()) pcmStreamPlayer.write(it.bytes)
                             }
                         }
 

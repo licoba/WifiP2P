@@ -78,13 +78,14 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
                 fileOutputStream = FileOutputStream(file)
                 val buffer = ByteArray(1024 * 100)
                 while (true) {
-                    val length = clientInputStream.read(buffer)
+                    val length = clientInputStream.read(buffer) // 这个是输入流
                     if (length > 0) {
-                        _fileTransferViewState.emit(value = FileTransferViewState.Receiving(buffer))
-                        fileOutputStream.write(buffer, 0, length)
+                        fileOutputStream.write(buffer, 0, length)  // 从buffer的0开始，读取length长度的数据，并写入到文件中。
                     } else {
                         break
                     }
+                    val realData = buffer.copyOfRange(0, length) // 真实接收到的数据
+                    _fileTransferViewState.emit(value = FileTransferViewState.Receiving(realData))
                     log(log = "正在传输文件，length : $length")
                 }
                 _fileTransferViewState.emit(value = FileTransferViewState.Success(file = file))
