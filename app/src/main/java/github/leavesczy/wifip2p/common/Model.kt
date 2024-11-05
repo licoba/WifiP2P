@@ -16,7 +16,7 @@ sealed class FileTransferViewState {
 
     data object Connecting : FileTransferViewState()
 
-    data object Receiving : FileTransferViewState()
+    data class Receiving(val bytes:ByteArray = byteArrayOf()) : FileTransferViewState()
 
     data class Success(val file: File) : FileTransferViewState()
 

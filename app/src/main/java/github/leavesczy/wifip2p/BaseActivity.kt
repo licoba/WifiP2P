@@ -17,6 +17,9 @@ open class BaseActivity : AppCompatActivity() {
     private var loadingDialog: ProgressDialog? = null
 
     protected fun showLoadingDialog(message: String = "", cancelable: Boolean = true) {
+        if(loadingDialog?.isShowing == true){
+            return
+        }
         loadingDialog?.dismiss()
         loadingDialog = ProgressDialog(this).apply {
             setMessage(message)

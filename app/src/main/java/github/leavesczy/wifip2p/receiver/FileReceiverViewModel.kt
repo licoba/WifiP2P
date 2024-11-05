@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import github.leavesczy.wifip2p.common.Constants
 import github.leavesczy.wifip2p.common.FileTransfer
 import github.leavesczy.wifip2p.common.FileTransferViewState
+import github.leavesczy.wifip2p.utils.PCMStreamPlayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -38,6 +39,7 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
 
     private var job: Job? = null
 
+
     fun startListener() {
         if (job != null) {
             return
@@ -62,7 +64,7 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
 
                 val client = serverSocket.accept()
 
-                _fileTransferViewState.emit(value = FileTransferViewState.Receiving)
+                _fileTransferViewState.emit(value = FileTransferViewState.Receiving())
 
                 clientInputStream = client.getInputStream()
                 objectInputStream = ObjectInputStream(clientInputStream)
@@ -78,6 +80,7 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
                 while (true) {
                     val length = clientInputStream.read(buffer)
                     if (length > 0) {
+                        _fileTransferViewState.emit(value = FileTransferViewState.Receiving(buffer))
                         fileOutputStream.write(buffer, 0, length)
                     } else {
                         break

@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.tmk.newfast.widgets.LogTextView
 import github.leavesczy.wifip2p.BaseActivity
 import github.leavesczy.wifip2p.DeviceAdapter
 import github.leavesczy.wifip2p.DirectActionListener
@@ -33,34 +34,15 @@ import kotlinx.coroutines.launch
 @SuppressLint("NotifyDataSetChanged")
 class FileSenderActivity : BaseActivity() {
 
-    private val tvDeviceState by lazy {
-        findViewById<TextView>(R.id.tvDeviceState)
-    }
-
-    private val tvConnectionStatus by lazy {
-        findViewById<TextView>(R.id.tvConnectionStatus)
-    }
-
-    private val btnDisconnect by lazy {
-        findViewById<Button>(R.id.btnDisconnect)
-    }
-
-    private val btnChooseFile by lazy {
-        findViewById<Button>(R.id.btnChooseFile)
-    }
-
-    private val rvDeviceList by lazy {
-        findViewById<RecyclerView>(R.id.rvDeviceList)
-    }
-
-    private val tvLog by lazy {
-        findViewById<TextView>(R.id.tvLog)
-    }
-
-    private val btnDirectDiscover by lazy {
-        findViewById<Button>(R.id.btnDirectDiscover)
-    }
-
+    private val tvDeviceState by lazy { findViewById<TextView>(R.id.tvDeviceState) }
+    private val tvConnectionStatus by lazy { findViewById<TextView>(R.id.tvConnectionStatus) }
+    private val btnDisconnect by lazy { findViewById<Button>(R.id.btnDisconnect) }
+    private val btnChooseFile by lazy { findViewById<Button>(R.id.btnChooseFile) }
+    private val rvDeviceList by lazy { findViewById<RecyclerView>(R.id.rvDeviceList) }
+    private val tvLog by lazy { findViewById<LogTextView>(R.id.tvLog) }
+    private val btnDirectDiscover by lazy { findViewById<Button>(R.id.btnDirectDiscover) }
+    private val btnSendSoundFile by lazy { findViewById<Button>(R.id.btnSendSoundFile) }
+    private val btnSendRecordSound by lazy { findViewById<Button>(R.id.btnSendRecordSound) }
     private val fileSenderViewModel by viewModels<FileSenderViewModel>()
 
     private val imagePickerLauncher =
@@ -75,19 +57,12 @@ class FileSenderActivity : BaseActivity() {
         }
 
     private val wifiP2pDeviceList = mutableListOf<WifiP2pDevice>()
-
     private val deviceAdapter = DeviceAdapter(wifiP2pDeviceList)
-
     private var broadcastReceiver: BroadcastReceiver? = null
-
     private lateinit var wifiP2pManager: WifiP2pManager
-
     private lateinit var wifiP2pChannel: WifiP2pManager.Channel
-
     private var wifiP2pInfo: WifiP2pInfo? = null
-
     private var wifiP2pEnabled = false
-
     private val directActionListener = object : DirectActionListener {
 
         override fun wifiP2pEnabled(enabled: Boolean) {
@@ -168,6 +143,13 @@ class FileSenderActivity : BaseActivity() {
         }
         btnChooseFile.setOnClickListener {
             imagePickerLauncher.launch("image/*")
+        }
+        btnSendSoundFile.setOnClickListener {
+            val ipAddress = wifiP2pInfo?.groupOwnerAddress?.hostAddress
+            log("准备向IP $ipAddress 发送本地音频文件")
+            if (!ipAddress.isNullOrBlank()) {
+                fileSenderViewModel.sendLocalAudioFile(ipAddress)
+            }
         }
         btnDirectDiscover.setOnClickListener {
             if (!wifiP2pEnabled) {
@@ -303,9 +285,9 @@ class FileSenderActivity : BaseActivity() {
         wifiP2pManager.removeGroup(wifiP2pChannel, null)
     }
 
+    @SuppressLint("SetTextI18n")
     private fun log(log: String) {
-        tvLog.append(log)
-        tvLog.append("\n\n")
+        tvLog.appendText(log)
     }
 
     private fun clearLog() {

@@ -13,11 +13,16 @@ import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import coil.load
+import com.blankj.utilcode.util.FileIOUtils
+import com.tmk.newfast.widgets.LogTextView
 import github.leavesczy.wifip2p.BaseActivity
 import github.leavesczy.wifip2p.DirectActionListener
 import github.leavesczy.wifip2p.DirectBroadcastReceiver
 import github.leavesczy.wifip2p.R
 import github.leavesczy.wifip2p.common.FileTransferViewState
+import github.leavesczy.wifip2p.utils.MyFileUtils
+import github.leavesczy.wifip2p.utils.PCMStreamPlayer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -28,36 +33,16 @@ import kotlin.coroutines.resume
  */
 class FileReceiverActivity : BaseActivity() {
 
-    private val ivImage by lazy {
-        findViewById<ImageView>(R.id.ivImage)
-    }
-
-    private val tvLog by lazy {
-        findViewById<TextView>(R.id.tvLog)
-    }
-
-    private val btnCreateGroup by lazy {
-        findViewById<Button>(R.id.btnCreateGroup)
-    }
-
-    private val btnRemoveGroup by lazy {
-        findViewById<Button>(R.id.btnRemoveGroup)
-    }
-
-    private val btnStartReceive by lazy {
-        findViewById<Button>(R.id.btnStartReceive)
-    }
-
+    private val tvLog by lazy { findViewById<LogTextView>(R.id.tvLog) }
+    private val btnCreateGroup by lazy { findViewById<Button>(R.id.btnCreateGroup) }
+    private val btnRemoveGroup by lazy { findViewById<Button>(R.id.btnRemoveGroup) }
+    private val btnStartReceive by lazy { findViewById<Button>(R.id.btnStartReceive) }
     private val fileReceiverViewModel by viewModels<FileReceiverViewModel>()
-
     private lateinit var wifiP2pManager: WifiP2pManager
-
     private lateinit var wifiP2pChannel: WifiP2pManager.Channel
-
     private var connectionInfoAvailable = false
-
     private var broadcastReceiver: BroadcastReceiver? = null
-
+    private val pcmStreamPlayer: PCMStreamPlayer by lazy { PCMStreamPlayer() }
     private val directActionListener = object : DirectActionListener {
         override fun wifiP2pEnabled(enabled: Boolean) {
             log("wifiP2pEnabled: $enabled")
@@ -96,6 +81,8 @@ class FileReceiverActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_file_receiver)
+        pcmStreamPlayer.start()
+
         initView()
         initDevice()
         initEvent()
@@ -112,6 +99,7 @@ class FileReceiverActivity : BaseActivity() {
         btnStartReceive.setOnClickListener {
             fileReceiverViewModel.startListener()
         }
+
     }
 
     private fun initDevice() {
@@ -146,16 +134,18 @@ class FileReceiverActivity : BaseActivity() {
                         }
 
                         FileTransferViewState.Connecting -> {
-                            showLoadingDialog(message = "")
+                            showLoadingDialog(message = "正在连接")
                         }
 
                         is FileTransferViewState.Receiving -> {
-                            showLoadingDialog(message = "")
+//                            showLoadingDialog(message = "")
+                            with(Dispatchers.IO){
+                                pcmStreamPlayer.write(it.bytes)
+                            }
                         }
 
                         is FileTransferViewState.Success -> {
                             dismissLoadingDialog()
-                            ivImage.load(data = it.file)
                         }
 
                         is FileTransferViewState.Failed -> {
@@ -177,6 +167,7 @@ class FileReceiverActivity : BaseActivity() {
         if (broadcastReceiver != null) {
             unregisterReceiver(broadcastReceiver)
         }
+        pcmStreamPlayer.stop()
         removeGroup()
     }
 
@@ -235,8 +226,7 @@ class FileReceiverActivity : BaseActivity() {
     }
 
     private fun log(log: String) {
-        tvLog.append(log)
-        tvLog.append("\n\n")
+        tvLog.appendText(log)
     }
 
     private fun clearLog() {

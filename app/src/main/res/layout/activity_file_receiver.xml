@@ -57,12 +57,23 @@
             android:contentDescription="@string/app_name"
             android:scaleType="centerCrop" />
 
-        <TextView
-            android:id="@+id/tvLog"
+
+
+        <ScrollView
+            android:id="@+id/ll_log"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="10dp"
-            android:textSize="18sp" />
+            android:layout_height="150dp"
+            android:background="#EEEEEE">
+
+            <com.tmk.newfast.widgets.LogTextView
+                android:id="@+id/tvLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="8dp"
+                android:textColor="#110000"
+                android:textSize="12sp" />
+
+        </ScrollView>
 
     </LinearLayout>
 
