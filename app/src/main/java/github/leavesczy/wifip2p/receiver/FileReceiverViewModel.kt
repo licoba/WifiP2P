@@ -2,17 +2,21 @@ package github.leavesczy.wifip2p.receiver
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import github.leavesczy.wifip2p.common.Constants
 import github.leavesczy.wifip2p.common.FileTransfer
 import github.leavesczy.wifip2p.common.FileTransferViewState
+import github.leavesczy.wifip2p.common.MessageEvent
+import github.leavesczy.wifip2p.utils.AudioTrackPlayer
 import github.leavesczy.wifip2p.utils.PCMStreamPlayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.EventBus
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -80,13 +84,19 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
                 while (true) {
                     val length = clientInputStream.read(buffer) // 这个是输入流
                     if (length > 0) {
-                        fileOutputStream.write(buffer, 0, length)  // 从buffer的0开始，读取length长度的数据，并写入到文件中。
+                        fileOutputStream.write(
+                            buffer,
+                            0,
+                            length
+                        )  // 从buffer的0开始，读取length长度的数据，并写入到文件中。
                     } else {
                         break
                     }
                     val realData = buffer.copyOfRange(0, length) // 真实接收到的数据
-                    _fileTransferViewState.emit(value = FileTransferViewState.Receiving(realData))
+//                    _fileTransferViewState.emit(value = FileTransferViewState.Receiving(realData))
+                    Log.d("TAG", "正在传输文件，长度 : $length")
                     log(log = "正在传输文件，length : $length")
+                    if (realData.isNotEmpty()) EventBus.getDefault().post(MessageEvent(realData))
                 }
                 _fileTransferViewState.emit(value = FileTransferViewState.Success(file = file))
                 log(log = "文件接收成功")
@@ -114,5 +124,6 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
     private suspend fun log(log: String) {
         _log.emit(value = log)
     }
+
 
 }

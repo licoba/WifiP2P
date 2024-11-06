@@ -23,3 +23,5 @@ sealed class FileTransferViewState {
     data class Failed(val throwable: Throwable) : FileTransferViewState()
 
 }
+
+class MessageEvent(val bytes: ByteArray)

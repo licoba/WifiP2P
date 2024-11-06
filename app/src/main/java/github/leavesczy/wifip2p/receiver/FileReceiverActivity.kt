@@ -6,29 +6,30 @@ import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Bundle
-import android.util.Log
 import android.widget.Button
-import android.widget.ImageView
-import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import coil.load
 import com.blankj.utilcode.util.FileIOUtils
+import com.blankj.utilcode.util.FileUtils
+import com.blankj.utilcode.util.PathUtils
 import com.tmk.newfast.widgets.LogTextView
 import github.leavesczy.wifip2p.BaseActivity
 import github.leavesczy.wifip2p.DirectActionListener
 import github.leavesczy.wifip2p.DirectBroadcastReceiver
 import github.leavesczy.wifip2p.R
 import github.leavesczy.wifip2p.common.FileTransferViewState
-import github.leavesczy.wifip2p.utils.MyFileUtils
-import github.leavesczy.wifip2p.utils.PCMStreamPlayer
-import kotlinx.coroutines.Dispatchers
+import github.leavesczy.wifip2p.common.MessageEvent
+import github.leavesczy.wifip2p.utils.AudioTrackPlayer
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
+import java.io.File
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
+
 
 /**
  * @Author: leavesCZY
@@ -45,7 +46,8 @@ class FileReceiverActivity : BaseActivity() {
     private lateinit var wifiP2pChannel: WifiP2pManager.Channel
     private var connectionInfoAvailable = false
     private var broadcastReceiver: BroadcastReceiver? = null
-    private val pcmStreamPlayer: PCMStreamPlayer by lazy { PCMStreamPlayer() }
+//    private val pcmStreamPlayer: PCMStreamPlayer by lazy { PCMStreamPlayer() }
+    private val audioTrackPlayer: AudioTrackPlayer by lazy { AudioTrackPlayer() }
     private val singleThreadExecutor = Executors.newSingleThreadExecutor()
 
     private val directActionListener = object : DirectActionListener {
@@ -86,11 +88,13 @@ class FileReceiverActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_file_receiver)
-        pcmStreamPlayer.start()
+        audioTrackPlayer.start()
 
         initView()
         initDevice()
         initEvent()
+
+        EventBus.getDefault().register(this)
     }
 
     private fun initView() {
@@ -139,15 +143,15 @@ class FileReceiverActivity : BaseActivity() {
                         }
 
                         FileTransferViewState.Connecting -> {
-                            showLoadingDialog(message = "正在连接")
+                            showLoadingDialog(message = "正在等待发送")
                         }
 
                         is FileTransferViewState.Receiving -> {
 //                            showLoadingDialog(message = "")
-//                            Log.e("TAG","收到大小"+it.bytes.size)
-                            singleThreadExecutor.execute {
-                                if(it.bytes.isNotEmpty()) pcmStreamPlayer.write(it.bytes)
-                            }
+//                            singleThreadExecutor.execute {
+//                                Log.e("TAG","收到长度 "+it.bytes.size)
+//                                if(it.bytes.isNotEmpty()) audioTrackPlayer.write(it.bytes)
+//                            }
                         }
 
                         is FileTransferViewState.Success -> {
@@ -173,7 +177,7 @@ class FileReceiverActivity : BaseActivity() {
         if (broadcastReceiver != null) {
             unregisterReceiver(broadcastReceiver)
         }
-        pcmStreamPlayer.stop()
+        audioTrackPlayer.stop()
         removeGroup()
     }
 
@@ -239,4 +243,12 @@ class FileReceiverActivity : BaseActivity() {
         tvLog.text = ""
     }
 
+
+    @Subscribe(threadMode = ThreadMode.POSTING)
+    fun onMessageEvent(event: MessageEvent) {
+       val file = File(PathUtils.getExternalAppCachePath()+"/record.pcm")
+        FileUtils.createOrExistsFile(file)
+        FileIOUtils.writeFileFromBytesByChannel(file,event.bytes,true,true  )
+        audioTrackPlayer.write(event.bytes)
+    }
 }

@@ -20,7 +20,7 @@ class PCMStreamPlayer(
 ) {
     private var audioTrack: AudioTrack? = null
     private var isPlaying = false
-    private val bufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+    private val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat) // 4116
 
     init {
         audioTrack = AudioTrack(
@@ -28,7 +28,7 @@ class PCMStreamPlayer(
             sampleRate,
             channelConfig,
             audioFormat,
-            bufferSize,
+            minBufferSize,
             AudioTrack.MODE_STREAM
         )
     }
@@ -55,6 +55,7 @@ class PCMStreamPlayer(
         if (!isPlaying) {
             throw IllegalStateException("AudioTrack is not playing. Call start() before writing data.")
         }
+        Log.d("TAG","最小长度："+minBufferSize)
         audioTrack?.write(data, 0, data.size)
     }
 }
