@@ -3,6 +3,7 @@ package github.leavesczy.wifip2p.sender
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.core.net.toFile
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
@@ -13,6 +14,7 @@ import com.blankj.utilcode.util.PathUtils
 import github.leavesczy.wifip2p.common.Constants
 import github.leavesczy.wifip2p.common.FileTransfer
 import github.leavesczy.wifip2p.common.FileTransferViewState
+import github.leavesczy.wifip2p.utils.FIFOBytes
 import github.leavesczy.wifip2p.utils.MyFileUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -48,70 +50,8 @@ class FileSenderViewModel(context: Application) : AndroidViewModel(context) {
 
     private var job: Job? = null
 
-    fun send(ipAddress: String, fileUri: Uri) {
-        if (job != null) {
-            return
-        }
-        job = viewModelScope.launch {
-            withContext(context = Dispatchers.IO) {
-                _fileTransferViewState.emit(value = FileTransferViewState.Idle)
 
-                var socket: Socket? = null
-                var outputStream: OutputStream? = null
-                var objectOutputStream: ObjectOutputStream? = null
-                var fileInputStream: FileInputStream? = null
-                try {
-                    val cacheFile =
-                        saveFileToCacheDir(context = getApplication(), fileUri = fileUri)
-                    val fileTransfer = FileTransfer(fileName = cacheFile.name)
-
-                    _fileTransferViewState.emit(value = FileTransferViewState.Connecting)
-                    _log.emit(value = "待发送的文件: $fileTransfer")
-                    _log.emit(value = "开启 Socket")
-
-                    socket = Socket()
-                    socket.bind(null)
-
-                    _log.emit(value = "socket connect，如果三十秒内未连接成功则放弃")
-
-                    socket.connect(InetSocketAddress(ipAddress, Constants.PORT), 30000)
-
-                    _fileTransferViewState.emit(value = FileTransferViewState.Receiving())
-                    _log.emit(value = "连接成功，开始传输文件")
-
-                    outputStream = socket.getOutputStream()
-                    objectOutputStream = ObjectOutputStream(outputStream)
-                    objectOutputStream.writeObject(fileTransfer)
-                    fileInputStream = FileInputStream(cacheFile)
-                    val buffer = ByteArray(1024 * 100)
-                    var length: Int
-                    while (true) {
-                        length = fileInputStream.read(buffer)
-                        if (length > 0) {
-                            outputStream.write(buffer, 0, length)
-                        } else {
-                            break
-                        }
-                        _log.emit(value = "正在传输文件，length : $length")
-                    }
-                    _log.emit(value = "文件发送成功")
-                    _fileTransferViewState.emit(value = FileTransferViewState.Success(file = cacheFile))
-                } catch (e: Throwable) {
-                    e.printStackTrace()
-                    _log.emit(value = "异常: " + e.message)
-                    _fileTransferViewState.emit(value = FileTransferViewState.Failed(throwable = e))
-                } finally {
-                    fileInputStream?.close()
-                    outputStream?.close()
-                    objectOutputStream?.close()
-                    socket?.close()
-                }
-            }
-        }
-        job?.invokeOnCompletion {
-            job = null
-        }
-    }
+    private var fifoRealTime = FIFOBytes(1024 * 1024 * 10)
 
     fun sendLocalAudioFile(ipAddress: String) {
         if (job != null) {
@@ -126,9 +66,13 @@ class FileSenderViewModel(context: Application) : AndroidViewModel(context) {
                 var objectOutputStream: ObjectOutputStream? = null
                 var fileInputStream: FileInputStream? = null
                 try {
-                    val cacheFile = File(PathUtils.getInternalAppDataPath()+"/audio/localTest.pcm")
+                    val cacheFile =
+                        File(PathUtils.getInternalAppDataPath() + "/audio/localTest.pcm")
                     FileUtils.createFileByDeleteOldFile(cacheFile)
-                    FileIOUtils.writeFileFromBytesByStream(cacheFile, MyFileUtils.readFileFromAssets(getApplication(), "长句.pcm"))
+                    FileIOUtils.writeFileFromBytesByStream(
+                        cacheFile,
+                        MyFileUtils.readFileFromAssets(getApplication(), "长句.pcm")
+                    )
                     val fileTransfer = FileTransfer(fileName = cacheFile.name)
                     _fileTransferViewState.emit(value = FileTransferViewState.Connecting)
                     _log.emit(value = "待发送的本地音频文件: $fileTransfer")
@@ -179,44 +123,61 @@ class FileSenderViewModel(context: Application) : AndroidViewModel(context) {
     }
 
 
+    private var realTimeJob: Job? = null
 
 
-
-    private suspend fun saveFileToCacheDir(context: Context, fileUri: Uri): File {
-        return withContext(context = Dispatchers.IO) {
-            val documentFile = DocumentFile.fromSingleUri(context, fileUri)
-                ?: throw NullPointerException("fileName for given input Uri is null")
-            val fileName = documentFile.name
-            val outputFile =
-                File(context.cacheDir, Random.nextInt(1, 200).toString() + "_" + fileName)
-            if (outputFile.exists()) {
-                outputFile.delete()
-            }
-            outputFile.createNewFile()
-            val outputFileUri = Uri.fromFile(outputFile)
-            copyFile(context, fileUri, outputFileUri)
-            return@withContext outputFile
+    fun sendRealTimeAudio(ipAddress: String, data: ByteArray) {
+        startRealTimeSendLoop(ipAddress)
+        viewModelScope.launch {
+            fifoRealTime.push(data)
         }
     }
 
-    private suspend fun copyFile(context: Context, inputUri: Uri, outputUri: Uri) {
-        withContext(context = Dispatchers.IO) {
-            val inputStream = context.contentResolver.openInputStream(inputUri)
-                ?: throw NullPointerException("InputStream for given input Uri is null")
-            val outputStream = FileOutputStream(outputUri.toFile())
-            val buffer = ByteArray(1024)
-            var length: Int
-            while (true) {
-                length = inputStream.read(buffer)
-                if (length > 0) {
+    private var isLooping: Boolean = false
+    private fun startRealTimeSendLoop(ipAddress: String) {
+        if (isLooping) { return }
+        isLooping = true
+        realTimeJob = viewModelScope.launch(Dispatchers.IO) {
+            Log.d(TAG, "开启socket和输出流")
+            var socket: Socket? = null
+            var outputStream: OutputStream? = null   // 发送字节流
+            var objectOutputStream: ObjectOutputStream? = null   // 发送文件信息
+            try {
+                _log.emit(value = "开启 Socket")
+                socket = Socket()
+                socket.bind(null)
+                _log.emit(value = "socket connect，如果三十秒内未连接成功则放弃")
+                socket.connect(InetSocketAddress(ipAddress, Constants.PORT), 30000)
+                _log.emit(value = "连接成功，开始传输本地音频文件")
+                outputStream = socket.getOutputStream()
+                objectOutputStream = ObjectOutputStream(outputStream)
+                objectOutputStream.writeObject(FileTransfer(fileName = "realTime.pcm"))
+                while (true) {
+                    val length: Int = 1024 * 10
+                    val buffer = fifoRealTime.pop(length)
                     outputStream.write(buffer, 0, length)
-                } else {
-                    break
+                    Log.d (TAG,"正在传输本地音频文件，length : $length")
                 }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                _log.emit(value = "发送本地音频文件异常: " + e.message)
+                _fileTransferViewState.emit(value = FileTransferViewState.Failed(throwable = e))
+            } finally {
+                outputStream?.close()
+                objectOutputStream?.close()
+                socket?.close()
+                isLooping = false
             }
-            inputStream.close()
-            outputStream.close()
         }
+        realTimeJob?.invokeOnCompletion {
+            realTimeJob = null
+        }
+    }
+
+
+
+    companion object {
+        const val TAG = "FileSenderViewModel"
     }
 
 }

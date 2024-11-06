@@ -101,7 +101,7 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
                 _fileTransferViewState.emit(value = FileTransferViewState.Success(file = file))
                 log(log = "文件接收成功")
             } catch (e: Throwable) {
-                log(log = "异常: " + e.message)
+                log(log = "文件接收异常: " + e.message)
                 _fileTransferViewState.emit(value = FileTransferViewState.Failed(throwable = e))
             } finally {
                 serverSocket?.close()

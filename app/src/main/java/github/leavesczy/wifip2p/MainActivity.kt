@@ -22,6 +22,7 @@ class MainActivity : BaseActivity() {
         add(Manifest.permission.CHANGE_NETWORK_STATE)
         add(Manifest.permission.ACCESS_WIFI_STATE)
         add(Manifest.permission.CHANGE_WIFI_STATE)
+        add(Manifest.permission.RECORD_AUDIO)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.NEARBY_WIFI_DEVICES)
         } else {

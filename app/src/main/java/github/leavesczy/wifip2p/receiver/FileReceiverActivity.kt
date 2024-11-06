@@ -98,7 +98,7 @@ class FileReceiverActivity : BaseActivity() {
     }
 
     private fun initView() {
-        supportActionBar?.title = "文件接收端"
+        supportActionBar?.title = "接收端"
         btnCreateGroup.setOnClickListener {
             createGroup()
         }
@@ -143,15 +143,11 @@ class FileReceiverActivity : BaseActivity() {
                         }
 
                         FileTransferViewState.Connecting -> {
-                            showLoadingDialog(message = "正在等待发送")
+                            showLoadingDialog(message = "正在接收...")
                         }
 
                         is FileTransferViewState.Receiving -> {
-//                            showLoadingDialog(message = "")
-//                            singleThreadExecutor.execute {
-//                                Log.e("TAG","收到长度 "+it.bytes.size)
-//                                if(it.bytes.isNotEmpty()) audioTrackPlayer.write(it.bytes)
-//                            }
+                            showLoadingDialog(message = "正在接收...")
                         }
 
                         is FileTransferViewState.Success -> {

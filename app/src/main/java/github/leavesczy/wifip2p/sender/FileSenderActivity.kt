@@ -8,6 +8,7 @@ import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,6 +25,7 @@ import github.leavesczy.wifip2p.DirectBroadcastReceiver
 import github.leavesczy.wifip2p.OnItemClickListener
 import github.leavesczy.wifip2p.R
 import github.leavesczy.wifip2p.common.FileTransferViewState
+import github.leavesczy.wifip2p.utils.RealTimeAudioRecorder
 import github.leavesczy.wifip2p.utils.WifiP2pUtils
 import kotlinx.coroutines.launch
 
@@ -44,17 +46,8 @@ class FileSenderActivity : BaseActivity() {
     private val btnSendSoundFile by lazy { findViewById<Button>(R.id.btnSendSoundFile) }
     private val btnSendRecordSound by lazy { findViewById<Button>(R.id.btnSendRecordSound) }
     private val fileSenderViewModel by viewModels<FileSenderViewModel>()
+    private val realTimeAudioRecorder by lazy { RealTimeAudioRecorder() }
 
-    private val imagePickerLauncher =
-        registerForActivityResult(ActivityResultContracts.GetContent()) { imageUri ->
-            if (imageUri != null) {
-                val ipAddress = wifiP2pInfo?.groupOwnerAddress?.hostAddress
-                log("getContentLaunch $imageUri $ipAddress")
-                if (!ipAddress.isNullOrBlank()) {
-                    fileSenderViewModel.send(ipAddress = ipAddress, fileUri = imageUri)
-                }
-            }
-        }
 
     private val wifiP2pDeviceList = mutableListOf<WifiP2pDevice>()
     private val deviceAdapter = DeviceAdapter(wifiP2pDeviceList)
@@ -137,19 +130,30 @@ class FileSenderActivity : BaseActivity() {
 
     @SuppressLint("MissingPermission")
     private fun initView() {
-        supportActionBar?.title = "文件发送端"
+        supportActionBar?.title = "发送端"
         btnDisconnect.setOnClickListener {
             disconnect()
         }
-        btnChooseFile.setOnClickListener {
-            imagePickerLauncher.launch("image/*")
-        }
+
         btnSendSoundFile.setOnClickListener {
             val ipAddress = wifiP2pInfo?.groupOwnerAddress?.hostAddress
             log("准备向IP $ipAddress 发送本地音频文件")
             if (!ipAddress.isNullOrBlank()) {
                 fileSenderViewModel.sendLocalAudioFile(ipAddress)
             }
+        }
+
+        btnSendRecordSound.setOnClickListener {
+            val ipAddress = wifiP2pInfo?.groupOwnerAddress?.hostAddress
+            log("准备向IP $ipAddress 发送实时录音")
+            if (ipAddress.isNullOrBlank()) return@setOnClickListener
+            val audioDataCallback = object : RealTimeAudioRecorder.AudioDataCallback {
+                override fun onAudioData(data: ByteArray, size: Int) {
+                    Log.d(TAG, "收到了录音数据 size:$size")
+                    fileSenderViewModel.sendRealTimeAudio(ipAddress, data)
+                }
+            }
+            realTimeAudioRecorder.startRecording(audioDataCallback)
         }
         btnDirectDiscover.setOnClickListener {
             if (!wifiP2pEnabled) {
@@ -240,6 +244,7 @@ class FileSenderActivity : BaseActivity() {
     }
 
     override fun onDestroy() {
+        realTimeAudioRecorder.stopRecording()
         super.onDestroy()
         if (broadcastReceiver != null) {
             unregisterReceiver(broadcastReceiver)
@@ -293,5 +298,10 @@ class FileSenderActivity : BaseActivity() {
     private fun clearLog() {
         tvLog.text = ""
     }
+
+    companion object {
+        const val TAG = "FileSenderActivity"
+    }
+
 
 }
