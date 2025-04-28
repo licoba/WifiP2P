@@ -23,6 +23,7 @@ import java.io.InputStream
 import java.io.ObjectInputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
+import java.net.Socket
 
 /**
  * @Author: CZY
@@ -31,8 +32,11 @@ import java.net.ServerSocket
  */
 class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
 
+    private val clientSockets = mutableListOf<Socket>()  // 用来保存已连接的客户端的Socket
+
     private val _fileTransferViewState = MutableSharedFlow<FileTransferViewState>()
 
+    private val TAG = "FileReceiverViewModel"
     val fileTransferViewState: SharedFlow<FileTransferViewState>
         get() = _fileTransferViewState
 
@@ -42,6 +46,8 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
         get() = _log
 
     private var job: Job? = null
+
+
 
 
     fun startListener() {
@@ -67,6 +73,7 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
                 log(log = "socket accept，三十秒内如果未成功则断开链接")
 
                 val client = serverSocket.accept()
+                clientSockets.add(client) // 添加到列表
 
                 _fileTransferViewState.emit(value = FileTransferViewState.Receiving())
 
@@ -122,8 +129,26 @@ class FileReceiverViewModel(context: Application) : AndroidViewModel(context) {
     }
 
     private suspend fun log(log: String) {
+        Log.d(TAG, log)
         _log.emit(value = log)
     }
 
+    fun sendMessageToAllClients(message: ByteArray) {
+        viewModelScope.launch(Dispatchers.IO) {
+            log("准备向所有客户端发送音频消息...")
+            clientSockets.forEach { clientSocket ->
+                try {
+                    log("正在向所有客户端发送音频消息...")
+                    val outputStream = clientSocket.getOutputStream()
+                    outputStream.write(message)
+                    outputStream.flush()
+                } catch (e: Exception) {
+                    log(log = "发送消息给客户端失败: ${e.message}")
+                }
+            }
+        }
+
+
+    }
 
 }

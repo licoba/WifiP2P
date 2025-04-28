@@ -45,9 +45,18 @@
             android:id="@+id/btnStartReceive"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="5dp"
+            android:layout_margin="4dp"
             android:text="启动监听"
             tools:ignore="HardcodedText" />
+
+        <Button
+            android:id="@+id/btnSendSoundFile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:text="发送音频文件"
+            tools:ignore="HardcodedText" />
+
 
         <ImageView
             android:id="@+id/ivImage"

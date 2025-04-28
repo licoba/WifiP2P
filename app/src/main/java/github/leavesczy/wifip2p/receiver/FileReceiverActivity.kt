@@ -21,13 +21,13 @@ import github.leavesczy.wifip2p.R
 import github.leavesczy.wifip2p.common.FileTransferViewState
 import github.leavesczy.wifip2p.common.MessageEvent
 import github.leavesczy.wifip2p.utils.AudioTrackPlayer
+import github.leavesczy.wifip2p.utils.MyFileUtils
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
-import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 
 
@@ -41,14 +41,13 @@ class FileReceiverActivity : BaseActivity() {
     private val btnCreateGroup by lazy { findViewById<Button>(R.id.btnCreateGroup) }
     private val btnRemoveGroup by lazy { findViewById<Button>(R.id.btnRemoveGroup) }
     private val btnStartReceive by lazy { findViewById<Button>(R.id.btnStartReceive) }
-    private val fileReceiverViewModel by viewModels<FileReceiverViewModel>()
+    private val btnSendSoundFile by lazy { findViewById<Button>(R.id.btnSendSoundFile) }
+    private val viewModel by viewModels<FileReceiverViewModel>()
     private lateinit var wifiP2pManager: WifiP2pManager
     private lateinit var wifiP2pChannel: WifiP2pManager.Channel
     private var connectionInfoAvailable = false
     private var broadcastReceiver: BroadcastReceiver? = null
-//    private val pcmStreamPlayer: PCMStreamPlayer by lazy { PCMStreamPlayer() }
     private val audioTrackPlayer: AudioTrackPlayer by lazy { AudioTrackPlayer() }
-    private val singleThreadExecutor = Executors.newSingleThreadExecutor()
 
     private val directActionListener = object : DirectActionListener {
         override fun wifiP2pEnabled(enabled: Boolean) {
@@ -106,7 +105,12 @@ class FileReceiverActivity : BaseActivity() {
             removeGroup()
         }
         btnStartReceive.setOnClickListener {
-            fileReceiverViewModel.startListener()
+            viewModel.startListener()
+        }
+        btnSendSoundFile.setOnClickListener {
+            log("准备向IP  发送本地音频文件")
+            val bytes =  MyFileUtils.readFileFromAssets(application, "长句.pcm")!!
+            viewModel.sendMessageToAllClients(bytes)
         }
 
     }
@@ -135,7 +139,7 @@ class FileReceiverActivity : BaseActivity() {
     private fun initEvent() {
         lifecycleScope.launch {
             launch {
-                fileReceiverViewModel.fileTransferViewState.collect {
+                viewModel.fileTransferViewState.collect {
                     when (it) {
                         FileTransferViewState.Idle -> {
                             clearLog()
@@ -161,7 +165,7 @@ class FileReceiverActivity : BaseActivity() {
                 }
             }
             launch {
-                fileReceiverViewModel.log.collect {
+                viewModel.log.collect {
                     log(it)
                 }
             }

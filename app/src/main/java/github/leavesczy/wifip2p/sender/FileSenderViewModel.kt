@@ -25,9 +25,12 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
+import java.net.ServerSocket
 import java.net.Socket
 import kotlin.random.Random
 
@@ -49,6 +52,7 @@ class FileSenderViewModel(context: Application) : AndroidViewModel(context) {
         get() = _log
 
     private var job: Job? = null
+    private var receiveJob: Job? = null
 
 
     private var fifoRealTime = FIFOBytes(1024 * 1024 * 10)
@@ -135,7 +139,9 @@ class FileSenderViewModel(context: Application) : AndroidViewModel(context) {
 
     private var isLooping: Boolean = false
     private fun startRealTimeSendLoop(ipAddress: String) {
-        if (isLooping) { return }
+        if (isLooping) {
+            return
+        }
         isLooping = true
         realTimeJob = viewModelScope.launch(Dispatchers.IO) {
             Log.d(TAG, "开启socket和输出流")
@@ -156,7 +162,7 @@ class FileSenderViewModel(context: Application) : AndroidViewModel(context) {
                     val length: Int = 1024 * 10
                     val buffer = fifoRealTime.pop(length)
                     outputStream.write(buffer, 0, length)
-                    Log.d (TAG,"正在传输本地音频文件，length : $length")
+                    Log.d(TAG, "正在传输本地音频文件，length : $length")
                 }
             } catch (e: Throwable) {
                 e.printStackTrace()
@@ -174,6 +180,51 @@ class FileSenderViewModel(context: Application) : AndroidViewModel(context) {
         }
     }
 
+    fun enableReceive() {
+        if (receiveJob != null) {
+            return
+        }
+        receiveJob = viewModelScope.launch(context = Dispatchers.IO) {
+            _fileTransferViewState.emit(value = FileTransferViewState.Idle)
+            var serverSocket: ServerSocket? = null
+            var clientInputStream: InputStream? = null
+            var objectInputStream: ObjectInputStream? = null
+            var fileOutputStream: FileOutputStream? = null
+            try {
+                _fileTransferViewState.emit(value = FileTransferViewState.Connecting)
+                log(log = "开启 Socket")
+                serverSocket = ServerSocket()
+                serverSocket.bind(InetSocketAddress(Constants.PORT))
+                serverSocket.reuseAddress = true
+                serverSocket.soTimeout = 30000
+                log(log = "socket accept，三十秒内如果未成功则断开链接")
+                val client = serverSocket.accept()
+                _fileTransferViewState.emit(value = FileTransferViewState.Receiving())
+                clientInputStream = client.getInputStream()
+                objectInputStream = ObjectInputStream(clientInputStream)
+                val fileTransfer = objectInputStream.readObject() as FileTransfer
+                log(log = "连接成功，待接收的文件: $fileTransfer")
+                log(log = "开始传输文件")
+                val buffer = ByteArray(1024 * 100)
+                log(log = "文件接收成功")
+            } catch (e: Throwable) {
+                log(log = "文件接收异常: " + e.message)
+            } finally {
+                serverSocket?.close()
+                clientInputStream?.close()
+                objectInputStream?.close()
+                fileOutputStream?.close()
+            }
+        }
+        receiveJob?.invokeOnCompletion {
+            receiveJob = null
+        }
+
+    }
+    private suspend fun log(log: String) {
+        Log.d(TAG, log)
+        _log.emit(value = log)
+    }
 
 
     companion object {

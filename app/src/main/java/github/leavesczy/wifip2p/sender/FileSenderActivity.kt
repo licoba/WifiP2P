@@ -45,6 +45,7 @@ class FileSenderActivity : BaseActivity() {
     private val btnDirectDiscover by lazy { findViewById<Button>(R.id.btnDirectDiscover) }
     private val btnSendSoundFile by lazy { findViewById<Button>(R.id.btnSendSoundFile) }
     private val btnSendRecordSound by lazy { findViewById<Button>(R.id.btnSendRecordSound) }
+    private val btnEnableReceive by lazy { findViewById<Button>(R.id.btnEnableReceive) }
     private val fileSenderViewModel by viewModels<FileSenderViewModel>()
     private val realTimeAudioRecorder by lazy { RealTimeAudioRecorder() }
 
@@ -141,6 +142,11 @@ class FileSenderActivity : BaseActivity() {
             if (!ipAddress.isNullOrBlank()) {
                 fileSenderViewModel.sendLocalAudioFile(ipAddress)
             }
+        }
+
+        btnEnableReceive.setOnClickListener {
+            log("启用接收功能")
+            fileSenderViewModel.enableReceive()
         }
 
         btnSendRecordSound.setOnClickListener {
